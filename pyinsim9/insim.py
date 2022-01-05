@@ -1247,8 +1247,11 @@ class IS_BTN(object):
         self.H = H
         self.Text = Text
     def pack(self):
-        TEXT_SIZE = int(math.ceil(len(self.Text) / 4.0)) * 4
-        return self.pack_s.pack(self.Size + TEXT_SIZE, self.Type, self.ReqI, self.UCID, self.ClickID, self.Inst, self.BStyle, self.TypeIn, self.L, self.T, self.W, self.H) + struct.pack('%ds' % TEXT_SIZE, self.Text)
+        while (len(self.Text) % 4 != 0):
+            self.Text += b' '
+        TEXT_SIZE = len(self.Text)
+        PACKET_SIZE = self.Size + (TEXT_SIZE // 4)
+        return self.pack_s.pack(PACKET_SIZE, self.Type, self.ReqI, self.UCID, self.ClickID, self.Inst, self.BStyle, self.TypeIn, self.L, self.T, self.W, self.H) + struct.pack('%ds' % TEXT_SIZE, self.Text)
 
 class IS_BTC(object):
     """BuTton Click - sent back when user clicks a button
