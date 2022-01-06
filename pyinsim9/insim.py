@@ -1087,6 +1087,8 @@ class NodeLap(object):
         """
         self.Node, self.Lap, self.PLID, self.Position = self.pack_s.unpack(data[index:index+6])
 
+
+
 class IS_MCI(object):
     """Multi Car Info - if more than 8 in race then more than one of these is sent
 
@@ -1094,6 +1096,7 @@ class IS_MCI(object):
     pack_s = struct.Struct('4B')
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.NumC = self.pack_s.unpack(data[:4])
+        #self.Size *= 4
         data = data[4:]
         self.Info = [CompCar(data, i) for i in range(0, self.NumC * 28, 28)]
         return self

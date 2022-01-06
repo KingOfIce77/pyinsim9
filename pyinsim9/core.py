@@ -357,7 +357,7 @@ class _TcpSocket(asyncore.dispatcher):
         self._dispatch_to._handle_error()
         
     def get_packets(self):
-        while self._recv_buff and len(self._recv_buff) >= self._recv_buff[0]:
+        while self._recv_buff and len(self._recv_buff) >= self._recv_buff[0]*4:
             size = self._recv_buff[0]*4
             
             # Check size is multiple of four.
@@ -583,6 +583,9 @@ class _InSim(_Binding):
     
     def _handle_insim_packet(self, data):
         ptype = data[1]
+
+        if ptype == 38:
+            pass
         
         # Keep alive.
         if ptype == insim_.ISP_TINY and data[3] == insim_.TINY_NONE:
