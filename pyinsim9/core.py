@@ -45,8 +45,8 @@ __all__ = [
 # Constants.
 PYINSIM_VERSION = '3.1.0'
 INSIM_VERSION = 9
-_TCP_BUFFER_SIZE = 2048
-_UDP_BUFFER_SIZE = 512
+_TCP_BUFFER_SIZE = 4096
+_UDP_BUFFER_SIZE = 1024
 _TIMEOUT = 0.05
 _OUTGAUGE_SIZE = (92, 96)
 _OUTSIM_SIZE = (64, 68)
@@ -123,6 +123,8 @@ _PACKET_MAP = {
     insim_.ISP_CSC: insim_.IS_CSC,
     insim_.ISP_CIM: insim_.IS_CIM,
     insim_.ISP_MAL: insim_.IS_MAL,
+    insim_.ISP_PLH: insim_.IS_PLH,
+    insim_.ISP_IPB: insim_.IS_IPB,
 }
 
 
@@ -559,6 +561,7 @@ class _InSim(_Binding):
     def _handle_tcp_read(self):
         for data in self._tcp.get_packets():  
             self._handle_insim_packet(data)
+
     
     def _handle_udp_read(self):
         data = self._udp.get_packet()
@@ -584,10 +587,7 @@ class _InSim(_Binding):
     def _handle_insim_packet(self, data):
         ptype = data[1]
 
-        if ptype == 38:
-            pass
-        
-        # Keep alive.
+        # Keep alive.P
         if ptype == insim_.ISP_TINY and data[3] == insim_.TINY_NONE:
             self._tcp.send(data)
             

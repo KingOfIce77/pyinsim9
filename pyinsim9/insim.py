@@ -6,7 +6,6 @@
 # GNU Lesser General Public License version 3 or any later version.
 #
 
-import math
 import struct
 
 INSIM_VERSION = 9
@@ -78,6 +77,8 @@ ISP_SLC = 62
 ISP_CSC = 63
 ISP_CIM = 64
 ISP_MAL = 65
+ISP_PLH = 66
+ISP_IPB = 67
 
 # Relay packets.
 IRP_ARQ = 250
@@ -116,6 +117,8 @@ TINY_ALC = 24
 TINY_AXM = 25
 TINY_SLC = 26
 TINY_MAL = 27
+TINY_PLH = 28
+TINY_IPB = 29
 
 # Enum for IS_SMALL sub-type
 SMALL_NONE = 0
@@ -265,7 +268,7 @@ PSE_REFUEL = 131072
 PSE_NUM = 262144
 
 # Bit flags for IS_NPL Flags
-PIF_SWAPSIDE = 1
+PIF_LEFTSIDE = 1
 PIF_RESERVED_2 = 2
 PIF_RESERVED_4 = 4
 PIF_AUTOGEARS = 8
@@ -678,8 +681,9 @@ class IS_MSO(object):
     pack_s = struct.Struct('8B')
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.Zero, self.UCID, self.PLID, self.UserType, self.TextStart = self.pack_s.unpack(data[:8])
+        #self.Msg = struct.unpack('%dsx' % int(self.Size - 9), data[8:])
         self.Msg = data[8:].split(b'\x00')[0]
-        self.Msg = _eat_null_chars(self.Msg)
+        #self.Msg = _eat_null_chars(self.Msg)
         return self
 
 class IS_III(object):
@@ -816,7 +820,7 @@ class IS_SLC(object):
     pack_s = struct.Struct('8B')
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.UCID, self.CName[0], self.CName[1], self.CName[2], self.CName[3] = self.pack_s.unpack(data)
-        self.CName = _eat_null_chars(self.CName) if self.CName[0:3].isalnum() else CName.hex()
+        self.CName = _eat_null_chars(self.CName) if self.CName[0:3].isalnum() else self.CName.hex()
         return self
 
 class IS_MAL(object):
@@ -827,6 +831,32 @@ class IS_MAL(object):
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.NumM, self.UCID, self.Flags, self.Sp1, self.Sp2, self.SkinID = self.pack_s.unpack(data)
         return self
+
+class in_addr(object):
+    pack_s = struct.Struct('4B')
+    def __init__(self, IP='123.123.123.123'):
+        self.IP = IP
+    def pack(self):
+        return self.pack_s.unpack(self.IP.encode())
+
+class IS_IPB(object):
+    pack_s = struct.Struct('8B')
+    def __init__(self, ReqI=0, NumB=0, BanIPs=[]):
+        self.Size = 2
+        self.Type = ISP_IPB
+        self.ReqI = ReqI
+        self.NumB = NumB
+        self.Sp0 = 0
+        self.Sp1 = 0
+        self.Sp2 = 0
+        self.Sp3 = 0
+        self.BanIPs = BanIPs
+    def pack(self):
+        data = self.pack_s.pack(self.Size + self.NumB, self.Type, self.ReqI, self.NumB, self.Sp0, self.Sp1, self.Sp2, self.Sp3)
+        for ip in self.BanIPs:
+            data += ip.pack()
+        return data
+
 
 class IS_CIM(object):
     """Conn Interface Mode
@@ -1035,7 +1065,7 @@ class IS_RES(object):
         self.UName = _eat_null_chars(self.UName)
         self.PName = _eat_null_chars(self.PName)
         self.Plate = _eat_null_chars(self.Plate) # No trailing zero
-        self.CName = _eat_null_chars(self.CName)
+        self.CName = _eat_null_chars(self.CName).decode() if self.CName[0:3].isalnum() else self.CName[::-1].hex()
         return self
 
 class IS_REO(object):
@@ -1062,7 +1092,7 @@ class IS_REO(object):
         return self.pack_s.pack(self.Size, self.Type, self.ReqI, len(self.PLID)) + plid
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.NumP = self.pack_s.unpack(data[:4])
-        self.PLID = [ord(data[4+i]) for i in range(self.NumP)]
+        self.PLID = [data[4+i] for i in range(self.NumP)]
         return self
 
 class IS_NLP(object):
@@ -1097,8 +1127,8 @@ class IS_MCI(object):
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.NumC = self.pack_s.unpack(data[:4])
         #self.Size *= 4
-        data = data[4:]
-        self.Info = [CompCar(data, i) for i in range(0, self.NumC * 28, 28)]
+        #data = data[4:]
+        self.Info = [CompCar(data[4:], i) for i in range(0, self.NumC * 28, 28)]
         return self
 
 class CompCar(object):
@@ -1169,7 +1199,7 @@ class IS_BFN(object):
 
     """
     pack_s = struct.Struct('8B')
-    def __init__(self, ReqI=0, SubT=0, UCID=0, ClickID=0, MaxClick=0, Inst=0):
+    def __init__(self, ReqI=0, SubT=0, UCID=0, ClickID=0, ClickMax=0, Inst=0):
         """Initialise a new IS_BFN packet.
 
         Args:
@@ -1187,12 +1217,12 @@ class IS_BFN(object):
         self.SubT = SubT
         self.UCID = UCID
         self.ClickID = ClickID
-        self.MaxClick = MaxClick
+        self.ClickMax = ClickMax
         self.Inst = Inst
     def pack(self):
-        return self.pack_s.pack(self.Size, self.Type, self.ReqI, self.SubT, self.UCID, self.ClickID, self.MaxClick, self.Inst)
+        return self.pack_s.pack(self.Size, self.Type, self.ReqI, self.SubT, self.UCID, self.ClickID, self.ClickMax, self.Inst)
     def unpack(self, data):
-        self.Size, self.Type, self.ReqI, self.SubT, self.UCID, self.ClickID, self.MaxClick, self.Inst = self.pack_s.unpack(data)
+        self.Size, self.Type, self.ReqI, self.SubT, self.UCID, self.ClickID, self.ClickMax, self.Inst = self.pack_s.unpack(data)
         return self
 
 class IS_AXI(object):
@@ -1250,11 +1280,16 @@ class IS_BTN(object):
         self.H = H
         self.Text = Text
     def pack(self):
-        while (len(self.Text) % 4 != 0):
-            self.Text += b' '
-        TEXT_SIZE = len(self.Text)
+        #while (len(self.Text) % 4 != 0):
+        #    self.Text += b' '
+        #TEXT_SIZE = len(self.Text)
+        #PACKET_SIZE = self.Size + (TEXT_SIZE // 4)
+        #return self.pack_s.pack(PACKET_SIZE, self.Type, self.ReqI, self.UCID, self.ClickID, self.Inst, self.BStyle, self.TypeIn, self.L, self.T, self.W, self.H) + struct.pack('%ds' % TEXT_SIZE, self.Text)
+
+        TEXT_SIZE = len(self.Text) + (4 - (len(self.Text) % 4))
         PACKET_SIZE = self.Size + (TEXT_SIZE // 4)
-        return self.pack_s.pack(PACKET_SIZE, self.Type, self.ReqI, self.UCID, self.ClickID, self.Inst, self.BStyle, self.TypeIn, self.L, self.T, self.W, self.H) + struct.pack('%ds' % TEXT_SIZE, self.Text)
+        return self.pack_s.pack(PACKET_SIZE, self.Type, self.ReqI, self.UCID, self.ClickID, self.Inst, self.BStyle,
+                                self.TypeIn, self.L, self.T, self.W, self.H) + struct.pack('%ds' % TEXT_SIZE, self.Text)
 
 class IS_BTC(object):
     """BuTton Click - sent back when user clicks a button
@@ -1317,7 +1352,7 @@ class IS_SSH(object):
 
     """
     pack_s = struct.Struct('8B31sx')
-    def __init__(self, ReqI=0, Error=0, BMP=b''):
+    def __init__(self, ReqI=0, Error=0, Name=b''):
         """Initialise a new IS_SSH packet.
 
         Args:
@@ -1334,12 +1369,12 @@ class IS_SSH(object):
         self.Sp1 = 0
         self.Sp2 = 0
         self.Sp3 = 0
-        self.BMP = BMP
+        self.Name = Name
     def pack(self):
-        return self.pack_s.pack(self.Size, self.Type, self.ReqI, self.Error, self.Sp0, self.Sp1, self.Sp2, self.Sp3, self.BMP)
+        return self.pack_s.pack(self.Size, self.Type, self.ReqI, self.Error, self.Sp0, self.Sp1, self.Sp2, self.Sp3, self.Name)
     def unpack(self, data):
-        self.Size, self.Type, self.ReqI, self.Error, self.Sp0, self.Sp1, self.Sp2, self.Sp3, self.BMP = self.pack_s.unpack(data)
-        self.BMP = _eat_null_chars(self.BMP)
+        self.Size, self.Type, self.ReqI, self.Error, self.Sp0, self.Sp1, self.Sp2, self.Sp3, self.Name = self.pack_s.unpack(data)
+        self.Name = _eat_null_chars(self.Name)
         return self
 
 class CarContact(object):
@@ -1586,6 +1621,44 @@ class IS_HCP(object):
     def pack(self):
         data = self.pack_s.pack(self.Size, self.Type, self.ReqI, self.Zero)
         return data + ''.join([info.pack() for info in self.Info])
+
+class PlayerHCap(object):
+    pack_s = struct.Struct('4B')
+    def __init__(self, PLID=0, H_Mass=0, H_TRes=0):
+        self.PLID = PLID
+        self.Flags = int(bin((0b1 if H_Mass > 0 else 0b0) | (0b10 if H_TRes > 0 else 0b0)), 2)
+        self.H_Mass = H_Mass
+        self.H_TRes = H_TRes
+    def pack(self):
+        return self.pack_s.pack(self.PLID, self.Flags, self.H_Mass, self.H_TRes)
+    def unpack(self, data):
+        self.PLID, self.Flags, self.H_Mass, self.H_TRes = self.pack_s.unpack(data)
+
+
+class IS_PLH(object):
+    pack_s = struct.Struct('4B')
+    def __init__(self, ReqI=0, NumP=0,HCaps=[]):
+        self.Size = 1
+        self.Type = ISP_PLH
+        self.ReqI = ReqI
+        self.NumP = NumP
+        self.HCaps = HCaps
+    def pack(self):
+        data = self.pack_s.pack(self.Size + self.NumP, self.Type, self.ReqI, self.NumP)
+        for i in range(self.NumP):
+            data = data + self.HCaps[i].pack()
+        return data
+    def unpack(self, data):
+        self.Size, self.Type, self.ReqI, self.NumP = self.pack_s.unpack(data[:4])
+        data = data[4:]
+        lHCapsList = []
+        for i in range(0, self.NumP * 4, 4):
+            lHCaps = PlayerHCap()
+            lHCaps.unpack(data[i:i + 4])
+            lHCapsList.append(lHCaps)
+        self.HCaps = lHCapsList
+        return self
+
 
 # InSim Relay
 
