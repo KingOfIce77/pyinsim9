@@ -125,6 +125,8 @@ _PACKET_MAP = {
     insim_.ISP_MAL: insim_.IS_MAL,
     insim_.ISP_PLH: insim_.IS_PLH,
     insim_.ISP_IPB: insim_.IS_IPB,
+    insim_.ISP_AIC: insim_.IS_AIC,
+    insim_.ISP_AII: insim_.IS_AII,
 }
 
 

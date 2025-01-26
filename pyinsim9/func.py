@@ -10,18 +10,32 @@ import math
 import re
 import struct
 
-import pyinsim.strmanip as strmanip
+import pyinsim9.strmanip as strmanip
 
 # import numpy as np
 
 
 _COLOUR_REGEX = re.compile(r'\^[0-9]')
+_COLOUR_CODE = {'black': b'^0', 'red': b'^1', 'green': b'^2', 'yellow': b'^3', 'blue': b'^4', 'pink': b'^5', 'lightblue': b'^6', 'white': b'^7', 'grey': b'^8', 'inherit': b'^9'}
 _ENC_REGEX = re.compile(r'\^[LETBJCGHSK]')
 _ENC_COL_REGEX = re.compile(r'\^[LETBJCGHSK0-9]')
+
+
+_PENALTY_MESSAGE = {0: 'No penalty', 1: 'Drive through', 2: 'Drive through done', 3: 'Stop&Go', 4: 'Stop&Go done', 5: '30 sec penalty', 6: '45 sec penalty'}
+_PENALTY_REASON = {0: 'unknown or cleared penalty', 1: 'penalty given by admin', 2: 'wrong way driving', 3: 'starting before green light', 4: 'speeding in pit lane', 5: 'stop-go pit stop too short', 6: 'compulsory stop is too late'}
 
 def stripcols(str_):
     """Strip color codes (^3, ^7 etc..) from a string."""
     return _COLOUR_REGEX.sub('', str_)
+
+def coltoinsim(str_):
+    return _COLOUR_CODE[str_]
+
+def colfromcode(byte_):
+    for col in _COLOUR_CODE.keys():
+        if _COLOUR_CODE[col] == byte_:
+            return col
+    return ''
 
 def stripenc(str_, cols=True):
     """Strip encoding markers (^L, ^E etc..) from a string. Note: a string 
@@ -57,23 +71,27 @@ def timestr(ms, hours=False):
 
 def mps(speed):
     """Convert speed to meters per second."""
-    return speed / 327.68
+    #return speed / 327.68
+    return speed * 0.0030517578125
 
 def mph(speed=0, mps=0):
     """Convert speed to miles per hour."""
     if mps:
         return mps * 2.23
-    return speed / 146.486067
+    #return speed / 146.486067
+    return speed * 0.006827197265625
 
 def kph(speed=0, mps=0):
     """Convert speed to kilometers per hour."""
     if mps:
         return mps * 3.6
-    return speed / 91.0222222
+    #return speed / 91.0222222
+    return speed * 0.010986328125
 
 def length(length):
     """Convert LFS length into meters."""
-    return length / 65536.0
+    #return length / 65536.0
+    return length * 0.0000152587890625
 
 def miles(length):
     """Convert length to miles."""
@@ -91,6 +109,16 @@ def rad(degrees):
     """Convert degrees to radians."""
     return degrees * 0.01745329
 
+def rad2insim(radians):
+    return int(radians * 32768 / math.pi)
+    #return radians * (65536.0 / (2 * math.pi))
+    #return radians * 10430.21919552736
+
+def insim2radians(val):
+    return val / (32768.0 / math.pi)
+    #return val / (65536.0 / (2 * math.pi))
+    #return val / 10430.21919552736
+
 def normalize_angle(angle):
     angle = angle % (2 * math.pi)
     if angle > math.pi:
@@ -106,7 +134,8 @@ def rpm(radians):
 
 def dist(a=(0,0,0), b=(0,0,0)):
     """Determine the distance between two points."""
-    return math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2]))
+    #return math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2]))
+    return math.dist(a, b)
 
 def intersects(a=(0, 0, 0, 0), b=(0, 0, 0, 0)):
     """Determine if two rectangles are intersecting."""
@@ -115,6 +144,44 @@ def intersects(a=(0, 0, 0, 0), b=(0, 0, 0, 0)):
     x3 = b[0] + b[2]
     y3 = b[1] + b[3]
     return not (x1 < b[0] or x3 < a[0] or y1 < b[1] or y3 < a[1])
+
+def get_penalty_message(m):
+    return _PENALTY_MESSAGE[m]
+def get_penalty_reason(r):
+    return _PENALTY_REASON[r]
+
+def outsim_class_to_dict(ClassObj, TimeMs = None):
+    return {'OSMain': {'AngVel': ClassObj.OSMain.AngVel,
+                       'Heading': ClassObj.OSMain.Heading,
+                       'Pitch': ClassObj.OSMain.Pitch,
+                       'Roll': ClassObj.OSMain.Roll,
+                       'Accel': ClassObj.OSMain.Accel,
+                       'Vel': ClassObj.OSMain.Vel,
+                       'Pos': ClassObj.OSMain.Pos},
+            'OSInputs': {'Throttle': ClassObj.OSInputs.Throttle,
+                        'Brake': ClassObj.OSInputs.Brake,
+                        'InputSteer': ClassObj.OSInputs.InputSteer,
+                        'Clutch': ClassObj.OSInputs.Clutch,
+                        'Handbrake': ClassObj.OSInputs.Handbrake},
+            'Gear': ClassObj.Gear,
+            'EngineAngVel': ClassObj.EngineAngVel,
+            'MaxTorqueAtVel': ClassObj.MaxTorqueAtVel,
+            'CurrentLapDist': ClassObj.CurrentLapDist,
+            'IndexedDistance': ClassObj.IndexedDistance,
+            'OSWheels': [{'SuspDeflect':tyre.SuspDeflect,
+                          'Steer':tyre.Steer,
+                          'XForce':tyre.XForce,
+                          'YForce':tyre.YForce,
+                          'VerticalLoad':tyre.VerticalLoad,
+                          'AngVel':tyre.AngVel,
+                          'LeanRelToRoad':tyre.LeanRelToRoad,
+                          'AirTemp':tyre.AirTemp,
+                          'SlipFraction':tyre.SlipFraction,
+                          'Touching':tyre.Touching,
+                          'SlipRatio':tyre.SlipRatio,
+                          'TanSlipAngle':tyre.TanSlipAngle} for tyre in ClassObj.OSWheels], # ['ArG', 'ArD', 'AvG', 'AvD']
+            'SteerTorque': ClassObj.SteerTorque,
+            'TimeMs': TimeMs}
 
 #def world_to_local(world_vector: np.ndarray, pitch: float, roll: float, yaw: float):
     """

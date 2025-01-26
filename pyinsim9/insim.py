@@ -79,6 +79,8 @@ ISP_CIM = 64
 ISP_MAL = 65
 ISP_PLH = 66
 ISP_IPB = 67
+ISP_AIC = 68
+ISP_AII = 69
 
 # Relay packets.
 IRP_ARQ = 250
@@ -131,13 +133,14 @@ SMALL_RTP = 6
 SMALL_NLI = 7
 SMALL_ALC = 8
 SMALL_LCS = 9
+SMALL_LCL = 10
+SMALL_AII = 11
 
 # Fourth byte of IS_TTC
 TTC_NONE = 0
 TTC_SEL = 1
 TTC_SEL_START = 2
 TTC_SEL_STOP = 3
-
 
 # Bit flags for ISI Flags
 ISF_RES_0 = 1
@@ -422,6 +425,20 @@ LCS_Mask_Headlights = 0x0800    # bit	11    (Switches & 0x0800) - Headlights
 LCS_Mask_Horn = 0x070000        # bits  16-18 (Switches & 0x070000) - Horn    (0 off / 1 to 5 horn type)
 LCS_Mask_Siren = 0x300000       # bits  20-21 (Switches & 0x300000) - Siren   (0 off / 1 fast / 2 slow)
 
+# SMALL_LCL Flags
+LCL_SET_SIGNALS = 1	        # bit 0
+LCL_SPARE_2 = 2		        # bit 1 (do not set)
+LCL_SET_LIGHTS = 4		    # bit 2
+LCL_SPARE_8 = 8		        # bit 3 (do not set)
+LCL_SET_FOG_REAR = 0x10	    # bit 4
+LCL_SET_FOG_FRONT = 0x20    # bit 5
+LCL_SET_EXTRA = 0x40	    # bit 6
+
+LCL_Mask_Signal = 0x00030000        # bits 16-17 (Switches & 0x00030000) - Signal    (0 off / 1 left / 2 right / 3 hazard)
+LCL_Mask_Lights = 0x000c0000        # bit  18-19 (Switches & 0x000c0000) - Lights    (0 off / 1 side / 2 low / 3 high)
+LCL_Mask_FogRear = 0x00100000       # bit  20    (Switches & 0x00100000) - Fog Rear
+LCL_Mask_FogFront = 0x00200000      # bit  21    (Switches & 0x00200000) - Fog Front
+LCL_Mask_ExtraLight = 0x00400000    # bit  22    (Switches & 0x00400000) - Extra Light
 
 def _eat_null_chars(str_):
     return str_.rstrip(b'\x00')
@@ -1548,6 +1565,86 @@ class IS_ACR(object):
         self.Text = struct.unpack('%dsx' % (self.Size - 9), data[8:])[0]
         self.Text = _eat_null_chars(self.Text)
         return self
+
+# Values for Input
+CS_MSX			= 0     # steering : 32768 is centre
+CS_THROTTLE		= 1     # 0 to 65535
+CS_BRAKE		= 2     # 0 to 65535
+CS_CHUP			= 3     # shift up (set to 1 for a short time then set back to 0)
+CS_CHDN		    = 4     # shift down
+CS_IGNITION		= 5     # set to 1 (auto switch off)
+CS_EXTRALIGHT	= 6
+CS_HEADLIGHTS	= 7      # 1: off / 2: side / 3: low / 4: high
+CS_SIREN		= 8
+CS_HORN			= 9
+CS_FLASH		= 10
+CS_CLUTCH		= 11     # 0 to 65535
+CS_HANDBRAKE	= 12     # 0 to 65535
+CS_INDICATORS	= 13     # 1: cancel / 2: left / 3: right / 4: hazard
+CS_GEAR			= 14     # for shifter (leave at 255 for sequential control)
+CS_LOOK			= 15     # 0: none / 4: left / 5: left+ / 6: right / 7: right+
+CS_PITSPEED		= 16
+CS_TCDISABLE	= 17
+CS_FOGREAR		= 18
+CS_FOGFRONT		= 19
+CS_NUM			= 20     # number of values above
+
+# Special values for Input
+
+#254 - reset all
+#255 - stop control
+
+class AIInputVal(object):
+    pack_s = struct.Struct('2BH')
+    def __init__(self, Input, Time, Value):
+        self.Input, self.Time, self.Value = Input, Time, Value
+    def pack(self):
+        return self.pack_s.pack(self.Input, self.Time, self.Value)
+
+class IS_AIC(object):
+    pack_s = struct.Struct('4B')
+    def __init__(self, ReqI=0, PLID=0, Inputs=[]):
+        self.Size = 1
+        self.Type = ISP_AIC
+        self.ReqI = ReqI
+        self.PLID = PLID
+        self.Inputs = Inputs
+    def pack(self):
+        lInputs = self.Inputs
+        data = self.pack_s.pack(self.Size + (len(lInputs)), self.Type, self.ReqI, self.PLID)
+        for i in range(len(lInputs)):
+            data = data + lInputs[i].pack()
+        print(data)
+        return data
+    def unpack(self, data):
+        self.Size, self.Type, self.ReqI, self.PLID = self.pack_s.unpack(data[:4])
+        data = data[4:]
+        self.Inputs = [AIInputVal(data, i) for i in range(0, CS_NUM * 4, 4)]
+        return self
+
+
+
+AIFLAGS_IGNITION = 1    # detect if engine running
+AIFLAGS_CHUP = 4        # upshift lever currently held
+AIFLAGS_CHDN = 8		# downshift lever currently held
+
+class IS_AII(object):
+    pack_s = struct.Struct('4B12f3i4B3f4I')
+    def unpack(self, data):
+        t = self.pack_s.unpack(data)
+        self.Size = t[0]
+        self.Type = t[1]
+        self.ReqI = t[2]
+        self.PLID = t[3]
+        self.OSData = OutSimMain().unpack(t[4:20])
+        self.Flags = t[21]
+        self.Gear = t[22]
+        #self.Sp2 = t[23]
+        #self.Sp3 = t[24]
+        self.RPM = t[25]
+        self.ShoLights = t[28]
+        return self
+
 
 CAR_NONE = 0
 CAR_XFG = 1
