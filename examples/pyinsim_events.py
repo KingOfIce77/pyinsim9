@@ -1,6 +1,6 @@
 """Example 4: Bind pyinsim top-level events."""
 
-import pyinsim
+import pyinsim9 as pyinsim
 
 def init(insim):
     print 'InSim initialized'

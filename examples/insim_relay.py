@@ -1,6 +1,6 @@
 "Example: Shows how to use InSim relay to select a single host."
 
-import pyinsim
+import pyinsim9 as pyinsim
 
 # Replace with host name
 HOST_NAME = 'Dead Men Racing'
