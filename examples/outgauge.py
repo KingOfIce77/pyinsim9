@@ -1,7 +1,7 @@
 """Example 5: Play a windows sound when the shift-light comes on"""
 
 import sys
-import pyinsim
+import pyinsim9 as pyinsim
 
 # Check this will actually work. :p
 try:

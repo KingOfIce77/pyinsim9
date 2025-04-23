@@ -1,4 +1,4 @@
-import pyinsim
+import pyinsim9 as pyinsim
 
 # Store the connection and player lists in dictionaries.
 connections = {}

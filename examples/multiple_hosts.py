@@ -3,7 +3,7 @@ three hosts at random, then request their connection lists.
 
 """
 
-import pyinsim
+import pyinsim9 as pyinsim
 import random
 
 NUMBER_HOSTS = 3

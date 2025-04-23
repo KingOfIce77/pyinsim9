@@ -6,24 +6,9 @@ enumerations for sending and receiving data between your program and the game.
 
 ## REQUIREMENTS
 
-The module requires Python 3.0 or better to run. You can download Python from the following URL:
+The module requires Python >=3.0 and <=3.11 to run. You can download Python from the following URL:
 
 http://www.python.org/download/
-
-## INSTALLATION
-
-To install pyinsim on Windows, simply unzip the package and run the windows
-installer 'pyinsim-x.x.x.win32.exe'. 
-
-To install from the source distribution, unzip the package and run the command 
-'python setup.py install'. 
-
-Both of these methods will install pyinsim to your 
-'X:\Path\To\Python\Lib\site-packages' directory. 
-
-Of course you always have the option of just copying the package folder into 
-your program's source directory (this is also useful for when you redistribute
-your program.).
 
 ## LICENSE
 
