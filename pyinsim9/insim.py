@@ -1562,7 +1562,7 @@ class IS_ACR(object):
     pack_s = struct.Struct('8B')
     def unpack(self, data):
         self.Size, self.Type, self.ReqI, self.Zero, self.UCID, self.Admin, self.Result, self.Sp3 = self.pack_s.unpack(data[:8])
-        self.Text = struct.unpack('%dsx' % (self.Size - 9), data[8:])[0]
+        self.Text = struct.unpack('%dsx' % (self.Size*4 - 9), data[8:])[0]
         self.Text = _eat_null_chars(self.Text)
         return self
 

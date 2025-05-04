@@ -17,12 +17,25 @@ import pyinsim9.strmanip as strmanip
 
 _COLOUR_REGEX = re.compile(r'\^[0-9]')
 _COLOUR_CODE = {'black': b'^0', 'red': b'^1', 'green': b'^2', 'yellow': b'^3', 'blue': b'^4', 'pink': b'^5', 'lightblue': b'^6', 'white': b'^7', 'grey': b'^8', 'inherit': b'^9'}
+# Codes de couleur LFS (HTML approximatif)
+_COLOR_MAP = {'1': '#FF0000',  # Rouge
+    '2': '#00FF00',  # Vert
+    '3': '#FFFF00',  # Jaune
+    '4': '#0000FF',  # Bleu
+    '5': '#FF00FF',  # Magenta
+    '6': '#00FFFF',  # Cyan
+    '7': '#FFFFFF',  # Blanc
+    '8': '#808080',  # Gris
+    '0': '#000000',  # Noir
+}
 _ENC_REGEX = re.compile(r'\^[LETBJCGHSK]')
 _ENC_COL_REGEX = re.compile(r'\^[LETBJCGHSK0-9]')
 
 
-_PENALTY_MESSAGE = {0: 'No penalty', 1: 'Drive through', 2: 'Drive through done', 3: 'Stop&Go', 4: 'Stop&Go done', 5: '30 sec penalty', 6: '45 sec penalty'}
+_PENALTY_MESSAGE = {0: 'No penalty', 1: 'Drive through', 2: 'Drive through', 3: 'Stop&Go', 4: 'Stop&Go', 5: '30 sec penalty', 6: '45 sec penalty'}
 _PENALTY_REASON = {0: 'unknown or cleared penalty', 1: 'penalty given by admin', 2: 'wrong way driving', 3: 'starting before green light', 4: 'speeding in pit lane', 5: 'stop-go pit stop too short', 6: 'compulsory stop is too late'}
+
+_TYRE_COMPOUND = {None: '', 0: 'R1', 1: 'R2', 2: 'R3', 3: 'R4', 4: 'Road Super', 5: 'Road Normal', 6: 'Hybrid', 7: 'Knobby'}
 
 def stripcols(str_):
     """Strip color codes (^3, ^7 etc..) from a string."""
@@ -36,6 +49,29 @@ def colfromcode(byte_):
         if _COLOUR_CODE[col] == byte_:
             return col
     return ''
+
+def lfs_color_to_html(text: str) -> str:
+    """
+    Convertit un texte LFS avec codes ^1 à ^8 en HTML coloré pour QLabel.
+    """
+    result = ""
+    current_color = '#FFFFFF'  # Couleur par défaut
+    i = 0
+    while i < len(text):
+        if text[i] == '^' and i + 1 < len(text) and text[i+1] in _COLOR_MAP:
+            current_color = _COLOR_MAP[text[i+1]]
+            i += 2
+        else:
+            safe_char = (
+                text[i].replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+            )
+            result += f'<span style="color:{current_color}">{safe_char}</span>'
+            i += 1
+
+    return result
+
 
 def stripenc(str_, cols=True):
     """Strip encoding markers (^L, ^E etc..) from a string. Note: a string 
@@ -119,13 +155,15 @@ def insim2radians(val):
     #return val / (65536.0 / (2 * math.pi))
     #return val / 10430.21919552736
 
-def normalize_angle(angle):
+def normalize_angle_old(angle):
     angle = angle % (2 * math.pi)
     if angle > math.pi:
         angle -= 2 * math.pi
     if angle < -math.pi:
         angle += 2 * math.pi
     return angle
+def normalize_angle(angle: float) -> float:
+    return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
 def rpm(radians):
@@ -149,6 +187,8 @@ def get_penalty_message(m):
     return _PENALTY_MESSAGE[m]
 def get_penalty_reason(r):
     return _PENALTY_REASON[r]
+def get_tyre_compound(c):
+    return _TYRE_COMPOUND[c]
 
 def outsim_class_to_dict(ClassObj, TimeMs = None):
     return {'OSMain': {'AngVel': ClassObj.OSMain.AngVel,
